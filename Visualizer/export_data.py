@@ -19,7 +19,7 @@ import shap
 warnings.filterwarnings("ignore")
 
 HERE = Path(__file__).resolve().parent
-DATA_PATH = HERE.parent / "Resources" / "Dataset" / "aquasat_landsat_lake_water_quality.csv"
+DATA_PATH = HERE.parent / "Resources" / "Dataset" / "aquasat.csv.gz"   # pandas unzips .gz automatically
 
 ## ---------------- Part I : cleaning (same as notebook) ----------------
 df = pd.read_csv(DATA_PATH)
