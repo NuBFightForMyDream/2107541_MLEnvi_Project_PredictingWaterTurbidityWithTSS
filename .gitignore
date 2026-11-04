@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# raw dataset is too large for GitHub -> use Resources/Dataset/aquasat.csv.gz
+*.csv
+*.part
