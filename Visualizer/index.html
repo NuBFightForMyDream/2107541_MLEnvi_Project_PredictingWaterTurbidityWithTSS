@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lake Turbidity from Space</title>
+<meta name="description" content="Can Landsat satellite images tell how muddy a lake is? Results of a machine-learning model that predicts Total Suspended Solids (TSS) for 21,000+ US lake sites.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --bar-muted: #9ec5f4;
+  --band: rgba(42, 120, 214, 0.09);
+  --link: #1c5cab;
+  --land: #efeee9;
+  --land-line: #d4d2ca;
+  --t1: #e3a35a; --t2: #cf8236; --t3: #b0611c; --t4: #86420f; --t5: #5a2906;
+  --chip: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --bar-muted: #1c5cab;
+    --band: rgba(57, 135, 229, 0.12);
+    --link: #86b6ef;
+    --land: #242422;
+    --land-line: #3a3a37;
+    --t1: #7a3d10; --t2: #a95a1d; --t3: #d0823a; --t4: #e8aa62; --t5: #f5d29c;
+    --chip: #262624;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --bar-muted: #1c5cab;
+  --band: rgba(57, 135, 229, 0.12);
+  --link: #86b6ef;
+  --land: #242422;
+  --land-line: #3a3a37;
+  --t1: #7a3d10; --t2: #a95a1d; --t3: #d0823a; --t4: #e8aa62; --t5: #f5d29c;
+  --chip: #262624;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a { color: var(--link); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+/* ---------- header ---------- */
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 0 0; color: var(--ink-2); font-size: 13px; }
+.theme-btn { font: inherit; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.theme-btn:hover { color: var(--ink); }
+.hero { padding: 40px 0 28px; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 10px; }
+h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 0 0 14px; letter-spacing: -0.02em; max-width: 18ch; }
+.byline { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; }
+.byline b { color: var(--ink); font-weight: 600; }
+.lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; margin: 0; }
+
+.headline { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr); gap: 16px; margin-top: 32px; }
+.hero-card, .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+.hero-num { font-size: clamp(52px, 8vw, 72px); font-weight: 700; line-height: 1; letter-spacing: -0.03em; }
+.hero-cap { margin: 10px 0 0; color: var(--ink-2); }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tile .v { font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; }
+.tile .l { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
+
+/* ---------- sections ---------- */
+section.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin: 20px 0; }
+.step { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+h2 { font-size: 24px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+.sub { color: var(--ink-2); margin: 0 0 16px; max-width: 70ch; }
+.note { color: var(--ink-2); font-size: 14px; margin: 12px 0 0; max-width: 75ch; }
+.callout { border-left: 3px solid var(--s2); padding: 4px 0 4px 12px; margin: 16px 0 0; color: var(--ink); max-width: 70ch; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 0 0 14px; }
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--chip); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--ink-2); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+.seg button:focus-visible, .theme-btn:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); margin: 0 0 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.dot { border-radius: 50%; }
+.sw.line { height: 2px; width: 16px; border-radius: 1px; }
+.sw.dash { height: 0; width: 16px; border-top: 2px dashed var(--muted); }
+
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart canvas { display: block; width: 100%; }
+.axis text, .tick-label { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.axis-title { fill: var(--ink-2); font-size: 12px; }
+.grid line { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.dlabel { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.dlabel-2 { fill: var(--ink-2); font-size: 12px; }
+
+.two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.mini { background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.mini h3 { margin: 0 0 6px; font-size: 16px; }
+.mini p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.cards3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+
+ol.flow { margin: 0; padding-left: 20px; color: var(--ink-2); }
+ol.flow li { margin: 4px 0; }
+ol.flow b { color: var(--ink); }
+
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--link); font-size: 14px; }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; }
+tr.best td { font-weight: 600; }
+
+.tooltip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-width: 260px; }
+.tooltip b { font-weight: 600; }
+.tooltip .tt-muted { color: var(--ink-2); }
+
+footer { color: var(--ink-2); font-size: 13px; padding: 12px 0 48px; }
+
+@media (max-width: 760px) {
+  .headline, .two-col, .cards3 { grid-template-columns: minmax(0, 1fr); }
+  section.card { padding: 18px 16px; }
+  .lede { font-size: 17px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span>2107541 Machine Learning for Environmental Applications · Individual Project</span>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle dark mode">Dark mode</button>
+  </div>
+
+  <header class="hero">
+    <p class="eyebrow">Water quality × satellites × machine learning</p>
+    <h1>Can satellites tell how muddy a lake is?</h1>
+    <p class="byline">By <b>Chatrphol Ovanonchai</b> · 6730084521</p>
+    <p class="lede">Muddy water, measured as <b>Total Suspended Solids (TSS)</b>, warns us about erosion, runoff and poor water quality. Measuring it means sending people out with bottles. This project trains a model to estimate TSS from <b>Landsat satellite images</b> instead, and tests it on lakes the model has never seen.</p>
+
+    <div class="headline">
+      <div class="hero-card">
+        <div class="hero-num" id="heroNum">–</div>
+        <p class="hero-cap" id="heroCap">of predictions for never-seen lakes land within 2× of the lab-measured value.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="v" id="tSamples">–</div><div class="l">water samples matched to a satellite image</div></div>
+        <div class="tile"><div class="v" id="tSites">–</div><div class="l">lake sampling sites across the US</div></div>
+        <div class="tile"><div class="v" id="tYears">–</div><div class="l">years of Landsat 5, 7 &amp; 8 images</div></div>
+        <div class="tile"><div class="v" id="tR2">–</div><div class="l">R² on unseen lakes (best model, 1.0 = perfect)</div></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. spectrum -->
+    <section class="card" id="sec-spectrum">
+      <p class="step">1 · The idea</p>
+      <h2>Muddy water reflects more red light</h2>
+      <p class="sub">Clear water absorbs most sunlight and looks dark from space. Suspended sediment scatters light back up, especially <b>red</b> and <b>near-infrared</b>. The satellite measures how much light comes back in six color bands, and the model learns that pattern.</p>
+      <div class="legend" id="specLegend"></div>
+      <div class="chart" id="specChart"></div>
+      <p class="note" id="specNote"></p>
+    </section>
+
+    <!-- 2. map -->
+    <section class="card" id="sec-map">
+      <p class="step">2 · The data</p>
+      <h2>Where the measurements come from</h2>
+      <p class="sub">Each dot is one lake sampling site, colored by its typical measured TSS. One in five sites was <b>hidden from the model</b> during training and used only to test it, so the score reflects how it would do on a brand-new lake.</p>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Map view" id="mapSeg">
+          <button type="button" data-v="all" aria-pressed="true">All sites · measured</button>
+          <button type="button" data-v="test" aria-pressed="false">Unseen lakes · measured</button>
+          <button type="button" data-v="pred" aria-pressed="false">Unseen lakes · model's guess</button>
+        </div>
+      </div>
+      <div class="legend" id="mapLegend"></div>
+      <div class="chart" id="mapChart"><canvas id="mapCanvas" aria-label="Map of lake sampling sites in the United States colored by suspended solids"></canvas></div>
+      <p class="note" id="mapNote"></p>
+    </section>
+
+    <!-- 3. models -->
+    <section class="card" id="sec-models">
+      <p class="step">3 · The models</p>
+      <h2>Four models compared, then the best one tuned</h2>
+      <p class="sub">A simple straight-line model is the baseline. Random Forest, XGBoost and a small neural network can learn curved relationships. The best one (Random Forest) was then tuned with a randomized search of its settings.</p>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Metric" id="metricSeg">
+          <button type="button" data-v="r2" aria-pressed="true">R² score</button>
+          <button type="button" data-v="within_2x" aria-pressed="false">Within 2× of measured</button>
+        </div>
+      </div>
+      <div class="chart" id="barChart"></div>
+      <p class="callout" id="tuneNote"></p>
+      <details>
+        <summary>Show all the numbers</summary>
+        <div class="table-wrap"><table id="metricTable"></table></div>
+        <p class="note"><b>Test</b> = lakes never seen in training. <b>CV</b> = 5-fold cross-validation on training lakes, grouped by site. <b>RMSE / MAE</b> are on the log(1 + TSS) scale. <b>Typical error</b> = median factor between predicted and measured TSS.</p>
+      </details>
+    </section>
+
+    <!-- 4. scatter -->
+    <section class="card" id="sec-scatter">
+      <p class="step">4 · How close are the guesses?</p>
+      <h2>Predicted vs measured, for lakes the model never saw</h2>
+      <p class="sub">Every dot is one water sample. Dots on the dashed line are perfect predictions; dots inside the shaded band are within 2× of the measured value. Both axes use a log scale because TSS ranges from almost clear to extremely muddy.</p>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Model" id="modelSeg"></div>
+      </div>
+      <div class="legend" id="scatterLegend"></div>
+      <div class="chart" id="scatterChart"></div>
+      <p class="callout" id="scatterNote"></p>
+    </section>
+
+    <!-- 5. importance -->
+    <section class="card" id="sec-importance">
+      <p class="step">5 · What the model looks at</p>
+      <h2>The red-light signals matter most</h2>
+      <p class="sub">How much each satellite signal contributes to the tuned Random Forest's decisions. The right column shows which way each signal pushes the prediction, which matches the physics of light in water.</p>
+      <div class="chart" id="impChart"></div>
+    </section>
+
+    <!-- 6. takeaways -->
+    <section class="card" id="sec-takeaways">
+      <p class="step">6 · So what?</p>
+      <h2>What this model is good for, and what it is not</h2>
+      <div class="cards3">
+        <div class="mini"><h3>Good for</h3><p>Screening thousands of lakes at once for <b>relative</b> muddiness: which lakes are clear, which are turbid, and where to send field teams first.</p></div>
+        <div class="mini"><h3>Not good for (yet)</h3><p>Exact numbers for compliance. Predictions are squeezed toward the middle: very clear water is over-estimated and very muddy water is <b>under-estimated</b>.</p></div>
+        <div class="mini"><h3>How to improve</h3><p>Add information the satellite can't see: rainfall before the image, land use around the lake and lake depth. Correct for differences between Landsat 5, 7 and 8 sensors.</p></div>
+      </div>
+      <div class="two-col" style="margin-top:16px">
+        <div class="mini">
+          <h3>How it was built</h3>
+          <ol class="flow">
+            <li><b>Clean:</b> keep cloud-free water pixels with a TSS measurement</li>
+            <li><b>Features:</b> 6 color bands, band ratios, water indices, season</li>
+            <li><b>Split by lake:</b> 80% of sites to train, 20% to test</li>
+            <li><b>Train &amp; compare:</b> 4 models, 5-fold grouped cross-validation</li>
+            <li><b>Tune</b> the best model, then test it <b>once</b></li>
+          </ol>
+        </div>
+        <div class="mini">
+          <h3>Why split by lake?</h3>
+          <p>The same lake is sampled many times. If samples from one lake ended up in both training and testing, the model could simply remember that lake and look better than it really is. Splitting by site makes the test honest.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Data: AquaSat (Ross et al., 2019), in-situ water quality matched to Landsat surface reflectance. Map outline: us-atlas.
+    Models: scikit-learn &amp; XGBoost.<br>
+    Made by Chatrphol Ovanonchai (6730084521) · 2107541 Machine Learning for Environmental Applications, Individual Project.
+  </footer>
+</div>
+
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="data.js"></script>
+<script src="us_map.js"></script>
+<script>
+(function () {
+  const D = window.TSS_DATA;
+  const fmtInt = d3.format(",");
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const fmtTss = (v) => v >= 100 ? d3.format(",.0f")(v) : v >= 10 ? d3.format(".0f")(v) : d3.format(".1f")(v);
+  const BEST = "Random Forest (tuned)";
+  const metricOf = (name) => D.metrics.find((m) => m.model === name);
+
+  /* ---------- theme toggle ---------- */
+  const themeBtn = document.getElementById("themeBtn");
+  function isDark() {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function syncThemeBtn() { themeBtn.textContent = isDark() ? "Light mode" : "Dark mode"; }
+  try { const saved = localStorage.getItem("tss-theme"); if (saved) document.documentElement.setAttribute("data-theme", saved); } catch (e) {}
+  syncThemeBtn();
+  themeBtn.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("tss-theme", next); } catch (e) {}
+    syncThemeBtn(); renderAll();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { syncThemeBtn(); renderAll(); });
+
+  /* ---------- tooltip ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    let left = x + 14, top = y + 14;
+    if (left + r.width > window.innerWidth - 8) left = x - r.width - 14;
+    if (top + r.height > window.innerHeight - 8) top = y - r.height - 14;
+    tip.style.left = Math.max(8, left) + "px"; tip.style.top = Math.max(8, top) + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+
+  function segmented(el, onChange) {
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      el.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      onChange(b.dataset.v);
+    });
+  }
+
+  /* ---------- hero ---------- */
+  const best = metricOf(BEST), S = D.summary;
+  document.getElementById("heroNum").textContent = Math.round(best.within_2x * 100) + "%";
+  document.getElementById("tSamples").textContent = fmtInt(S.clean_rows);
+  document.getElementById("tSites").textContent = fmtInt(S.n_sites);
+  document.getElementById("tYears").textContent = S.year_min + "–" + S.year_max;
+  document.getElementById("tR2").textContent = best.r2.toFixed(2);
+
+  /* ================= 1. spectrum ================= */
+  const BAND_LABELS = ["Blue", "Green", "Red", "Near-IR", "SWIR 1", "SWIR 2"];
+  const BAND_WL = ["0.48 µm", "0.56 µm", "0.66 µm", "0.86 µm", "1.6 µm", "2.2 µm"];
+  const sp = D.spectrum;
+  document.getElementById("specLegend").innerHTML =
+    `<span><i class="sw line" style="background:var(--s2)"></i>Muddy water (TSS ≥ ${sp.turbid_cutoff} mg/L, top 25%)</span>` +
+    `<span><i class="sw line" style="background:var(--s1)"></i>Clear water (TSS ≤ ${sp.clear_cutoff} mg/L, bottom 25%)</span>`;
+  const redRatio = sp.turbid[2] / sp.clear[2];
+  document.getElementById("specNote").textContent =
+    `Median reflectance of all samples. Muddy water sends back about ${redRatio.toFixed(1)}× as much red light as clear water, while shortwave infrared (SWIR) is absorbed by both.`;
+
+  function renderSpectrum() {
+    const el = document.getElementById("specChart");
+    const W = el.clientWidth, H = Math.max(240, Math.min(340, W * 0.45));
+    const m = { t: 16, r: 16, b: 44, l: 44 };
+    el.innerHTML = "";
+    const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img")
+      .attr("aria-label", "Line chart of reflectance by color band for clear and muddy water");
+    const x = d3.scalePoint().domain(d3.range(6)).range([m.l + 10, W - m.r - 10]);
+    const ymax = d3.max(sp.turbid) * 100 * 1.15;
+    const y = d3.scaleLinear().domain([0, ymax]).nice().range([H - m.b, m.t]);
+    const grid = svg.append("g").attr("class", "grid");
+    y.ticks(4).forEach((t) => grid.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)));
+    const ax = svg.append("g").attr("class", "axis");
+    y.ticks(4).forEach((t) => ax.append("text").attr("x", m.l - 8).attr("y", y(t) + 4).attr("text-anchor", "end").text(t + "%"));
+    svg.append("text").attr("class", "axis-title").attr("x", m.l).attr("y", m.t - 4).text("Light reflected");
+    svg.append("line").attr("class", "baseline").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(0)).attr("y2", y(0));
+    d3.range(6).forEach((i) => {
+      ax.append("text").attr("x", x(i)).attr("y", H - m.b + 18).attr("text-anchor", "middle").style("fill", "var(--ink-2)").text(BAND_LABELS[i]);
+      ax.append("text").attr("x", x(i)).attr("y", H - m.b + 33).attr("text-anchor", "middle").text(BAND_WL[i]);
+    });
+    const series = [
+      { key: "turbid", color: css("--s2"), label: "Muddy" },
+      { key: "clear", color: css("--s1"), label: "Clear" },
+    ];
+    const line = d3.line().x((d, i) => x(i)).y((d) => y(d * 100));
+    series.forEach((s) => {
+      svg.append("path").attr("d", line(sp[s.key])).attr("fill", "none").attr("stroke", s.color).attr("stroke-width", 2).attr("stroke-linejoin", "round");
+      svg.append("g").selectAll("circle").data(sp[s.key]).join("circle")
+        .attr("cx", (d, i) => x(i)).attr("cy", (d) => y(d * 100)).attr("r", 4.5)
+        .attr("fill", s.color).attr("stroke", css("--surface")).attr("stroke-width", 2);
+    });
+    // direct labels at the red band peak
+    svg.append("text").attr("class", "dlabel").attr("x", x(2) + 10).attr("y", y(sp.turbid[2] * 100) - 8).text("Muddy");
+    svg.append("text").attr("class", "dlabel").attr("x", x(2) + 10).attr("y", y(sp.clear[2] * 100) + 18).text("Clear");
+    // hover columns
+    const guide = svg.append("line").attr("stroke", css("--axis")).attr("y1", m.t).attr("y2", H - m.b).style("opacity", 0);
+    const step = x.step();
+    svg.append("g").selectAll("rect").data(d3.range(6)).join("rect")
+      .attr("x", (i) => x(i) - step / 2).attr("width", step).attr("y", m.t).attr("height", H - m.t - m.b)
+      .attr("fill", "transparent")
+      .on("pointermove", (e, i) => {
+        guide.attr("x1", x(i)).attr("x2", x(i)).style("opacity", 1);
+        showTip(`<b>${BAND_LABELS[i]}</b> <span class="tt-muted">(${BAND_WL[i]})</span><br>Muddy: ${(sp.turbid[i] * 100).toFixed(2)}%<br>Clear: ${(sp.clear[i] * 100).toFixed(2)}%<br><span class="tt-muted">${(sp.turbid[i] / sp.clear[i]).toFixed(2)}× more from muddy water</span>`, e.clientX, e.clientY);
+      })
+      .on("pointerleave", () => { guide.style("opacity", 0); hideTip(); });
+  }
+
+  /* ================= 2. map ================= */
+  const BIN_LABELS = ["< 5", "5–10", "10–25", "25–50", "≥ 50 mg/L"];
+  const binOf = (v) => (v < 5 ? 0 : v < 10 ? 1 : v < 25 ? 2 : v < 50 ? 3 : 4);
+  const proj = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
+  const sites = D.sites.map((s) => {
+    const p = proj([s[1], s[0]]);
+    return p ? { lat: s[0], lon: s[1], n: s[2], tss: s[3], test: s[4] === 1, pred: s[5], x: p[0], y: p[1] } : null;
+  }).filter(Boolean);
+  const nation = topojson.feature(window.US_MAP, window.US_MAP.objects.nation);
+  const stateMesh = topojson.mesh(window.US_MAP, window.US_MAP.objects.states, (a, b) => a !== b);
+  let mapView = "all", mapPts = [], mapDelaunay = null, mapScale = 1, mapHover = null;
+
+  function mapLegend() {
+    const sw = (i) => `var(--t${i + 1})`;
+    const label = mapView === "pred" ? "Model's typical guess per site:" : "Typical measured TSS per site:";
+    document.getElementById("mapLegend").innerHTML = `<span>${label}</span>` +
+      BIN_LABELS.map((l, i) => `<span><i class="sw dot" style="background:${sw(i)}"></i>${l}</span>`).join("");
+  }
+  function mapNote() {
+    const pts = sites.filter((s) => s.test);
+    const muddyMeasured = pts.filter((s) => s.tss >= 50).length;
+    const muddyPred = pts.filter((s) => s.pred >= 50).length;
+    const el = document.getElementById("mapNote");
+    if (mapView === "pred") el.innerHTML = `Compare with "Unseen lakes · measured": the model calls <b>${fmtInt(muddyPred)}</b> unseen sites very muddy (≥ 50 mg/L), but <b>${fmtInt(muddyMeasured)}</b> actually are. It gets the general pattern right but plays it safe at the extremes.`;
+    else if (mapView === "test") el.innerHTML = `${fmtInt(pts.length)} sites the model never saw during training. Hover a dot for details.`;
+    else {
+      const share = (f) => { const v = sites.filter(f); return Math.round(100 * v.filter((s) => s.tss >= 50).length / v.length); };
+      el.innerHTML = `${fmtInt(sites.length)} sites. Very muddy sites (≥ 50 mg/L) are far more common in the drier West (${share((s) => s.lon < -104)}% of sites west of the Rockies) than in the East (${share((s) => s.lon >= -87)}%). Hover a dot for details.`;
+    }
+  }
+  function renderMap() {
+    const el = document.getElementById("mapChart"), cv = document.getElementById("mapCanvas");
+    const W = el.clientWidth, H = W * 610 / 975, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + "px";
+    mapScale = W / 975;
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr * mapScale, 0, 0, dpr * mapScale, 0, 0);
+    ctx.clearRect(0, 0, 975, 610);
+    const path = d3.geoPath(null, ctx);
+    ctx.beginPath(); path(nation); ctx.fillStyle = css("--land"); ctx.fill();
+    ctx.beginPath(); path(stateMesh); ctx.strokeStyle = css("--land-line"); ctx.lineWidth = 0.7 / mapScale; ctx.stroke();
+    ctx.beginPath(); path(nation); ctx.strokeStyle = css("--axis"); ctx.lineWidth = 1 / mapScale; ctx.stroke();
+
+    mapPts = mapView === "all" ? sites : sites.filter((s) => s.test);
+    const val = (s) => (mapView === "pred" ? s.pred : s.tss);
+    const colors = [1, 2, 3, 4, 5].map((i) => css("--t" + i));
+    const r = Math.max(1.6, 2.4 / Math.sqrt(mapScale)) / mapScale * (mapView === "all" ? 1 : 1.25);
+    // draw bins low -> high so the rarer muddy sites stay visible
+    for (let b = 0; b < 5; b++) {
+      ctx.fillStyle = colors[b]; ctx.beginPath();
+      mapPts.forEach((s) => { if (binOf(val(s)) === b) { ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); } });
+      ctx.fill();
+    }
+    if (mapHover) {
+      ctx.beginPath(); ctx.arc(mapHover.x, mapHover.y, r + 3 / mapScale, 0, Math.PI * 2);
+      ctx.strokeStyle = css("--ink"); ctx.lineWidth = 2 / mapScale; ctx.stroke();
+    }
+    mapDelaunay = d3.Delaunay.from(mapPts, (s) => s.x, (s) => s.y);
+    mapLegend(); mapNote();
+  }
+  const mapCanvas = document.getElementById("mapCanvas");
+  mapCanvas.addEventListener("pointermove", (e) => {
+    if (!mapDelaunay) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / mapScale, my = (e.clientY - rect.top) / mapScale;
+    const i = mapDelaunay.find(mx, my), s = mapPts[i];
+    if (!s || Math.hypot(s.x - mx, s.y - my) * mapScale > 14) { if (mapHover) { mapHover = null; renderMap(); } hideTip(); return; }
+    if (mapHover !== s) { mapHover = s; renderMap(); }
+    let html = `<b>Measured TSS: ${fmtTss(s.tss)} mg/L</b> <span class="tt-muted">(median)</span><br>${fmtInt(s.n)} sample${s.n > 1 ? "s" : ""} · ${s.lat.toFixed(2)}°, ${s.lon.toFixed(2)}°`;
+    if (s.test) html += `<br>Model's guess: <b>${fmtTss(s.pred)} mg/L</b><br><span class="tt-muted">Unseen lake (test set)</span>`;
+    else html += `<br><span class="tt-muted">Used for training</span>`;
+    showTip(html, e.clientX, e.clientY);
+  });
+  mapCanvas.addEventListener("pointerleave", () => { mapHover = null; hideTip(); renderMap(); });
+  segmented(document.getElementById("mapSeg"), (v) => { mapView = v; mapHover = null; renderMap(); });
+
+  /* ================= 3. model bars ================= */
+  let barMetric = "r2";
+  const SHORT = { "Linear Regression": "Linear Regression (baseline)", "Random Forest": "Random Forest", "XGBoost": "XGBoost", "Neural Network (MLP)": "Neural Network (MLP)", "Random Forest (tuned)": "Random Forest, tuned ★" };
+  function renderBars() {
+    const el = document.getElementById("barChart");
+    const W = el.clientWidth, rowH = 40, narrow = W < 520;
+    const m = { t: 8, r: 56, b: 28, l: narrow ? 8 : 200 };
+    const rows = D.metrics;
+    const H = m.t + m.b + rows.length * rowH * (narrow ? 1.5 : 1);
+    el.innerHTML = "";
+    const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Bar chart comparing model scores");
+    const x = d3.scaleLinear().domain([0, barMetric === "r2" ? 0.6 : 0.8]).range([m.l, W - m.r]);
+    const fmt = barMetric === "r2" ? (v) => v.toFixed(3) : (v) => Math.round(v * 100) + "%";
+    const g = svg.append("g").attr("class", "grid");
+    x.ticks(4).forEach((t) => g.append("line").attr("x1", x(t)).attr("x2", x(t)).attr("y1", m.t).attr("y2", H - m.b));
+    const ax = svg.append("g").attr("class", "axis");
+    x.ticks(4).forEach((t) => ax.append("text").attr("x", x(t)).attr("y", H - m.b + 18).attr("text-anchor", "middle").text(barMetric === "r2" ? t.toFixed(1) : Math.round(t * 100) + "%"));
+    const band = rowH * (narrow ? 1.5 : 1);
+    rows.forEach((d, i) => {
+      const yTop = m.t + i * band, barH = 18;
+      const by = narrow ? yTop + 22 : yTop + (band - barH) / 2;
+      const isBest = d.model === BEST;
+      const lab = svg.append("text").attr("class", isBest ? "dlabel" : "dlabel-2")
+        .attr("x", narrow ? m.l : m.l - 12).attr("y", narrow ? yTop + 15 : by + barH / 2 + 4)
+        .attr("text-anchor", narrow ? "start" : "end").text(SHORT[d.model]);
+      if (!isBest) lab.style("fill", "var(--ink-2)").style("font-size", "13px");
+      const w = x(d[barMetric]) - x(0), rr = 4;
+      const p = `M${x(0)},${by} h${w - rr} a${rr},${rr} 0 0 1 ${rr},${rr} v${barH - 2 * rr} a${rr},${rr} 0 0 1 -${rr},${rr} h-${w - rr} Z`;
+      svg.append("path").attr("d", p).attr("fill", isBest ? css("--s1") : css("--bar-muted"));
+      svg.append("text").attr("class", isBest ? "dlabel" : "dlabel-2").attr("x", x(d[barMetric]) + 8).attr("y", by + barH / 2 + 4).text(fmt(d[barMetric]));
+      svg.append("rect").attr("x", 0).attr("y", yTop).attr("width", W).attr("height", band).attr("fill", "transparent")
+        .on("pointermove", (e) => showTip(`<b>${d.model}</b><br>R² (unseen lakes): ${d.r2.toFixed(3)}<br>Within 2×: ${Math.round(d.within_2x * 100)}%<br>Typical error: ×${d.median_factor.toFixed(2)}<br><span class="tt-muted">Cross-validation R²: ${d.cv_r2.toFixed(3)} ± ${d.cv_r2_std.toFixed(3)}</span>`, e.clientX, e.clientY))
+        .on("pointerleave", hideTip);
+    });
+    svg.append("line").attr("class", "baseline").attr("x1", x(0)).attr("x2", x(0)).attr("y1", m.t).attr("y2", H - m.b);
+  }
+  (function tableAndNotes() {
+    const rf = metricOf("Random Forest"), lr = metricOf("Linear Regression");
+    document.getElementById("tuneNote").innerHTML =
+      `Curved-relationship models beat the straight-line baseline (R² ${lr.r2.toFixed(2)} → ${rf.r2.toFixed(2)}). Tuning Random Forest added a further small gain (${rf.r2.toFixed(3)} → <b>${best.r2.toFixed(3)}</b>), so the main limit is the information in the satellite signal, not the model settings.`;
+    const head = "<tr><th>Model</th><th>Test R²</th><th>Within 2×</th><th>Typical error</th><th>Test RMSE</th><th>Test MAE</th><th>CV R²</th><th>Train R²</th></tr>";
+    const body = D.metrics.map((d) => `<tr class="${d.model === BEST ? "best" : ""}"><td>${d.model}</td><td>${d.r2.toFixed(3)}</td><td>${Math.round(d.within_2x * 100)}%</td><td>×${d.median_factor.toFixed(2)}</td><td>${d.rmse.toFixed(3)}</td><td>${d.mae.toFixed(3)}</td><td>${d.cv_r2.toFixed(3)} ± ${d.cv_r2_std.toFixed(3)}</td><td>${d.train_r2.toFixed(3)}</td></tr>`).join("");
+    document.getElementById("metricTable").innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+  })();
+  segmented(document.getElementById("metricSeg"), (v) => { barMetric = v; renderBars(); });
+
+  /* ================= 4. scatter ================= */
+  let scModel = BEST;
+  const modelSeg = document.getElementById("modelSeg");
+  modelSeg.innerHTML = D.metrics.map((d) => `<button type="button" data-v="${d.model}" aria-pressed="${d.model === BEST}">${d.model === BEST ? "RF tuned ★" : d.model === "Neural Network (MLP)" ? "Neural net" : d.model === "Linear Regression" ? "Linear" : d.model}</button>`).join("");
+  document.getElementById("scatterLegend").innerHTML =
+    `<span><i class="sw dot" style="background:var(--s1)"></i>One water sample</span>` +
+    `<span><i class="sw line" style="background:var(--s2)"></i>Model's typical guess</span>` +
+    `<span><i class="sw dash"></i>Perfect prediction</span>` +
+    `<span><i class="sw" style="background:var(--band);outline:1px solid var(--border)"></i>Within 2×</span>`;
+  let scState = null;
+  function renderScatter(animate) {
+    const el = document.getElementById("scatterChart");
+    const W = el.clientWidth, H = Math.min(560, Math.max(300, W * 0.72));
+    const m = { t: 16, r: 18, b: 44, l: 52 };
+    const real = D.scatter.real, pred = D.scatter.pred[scModel];
+    const lo = 1, hi = 1500;
+    const x = d3.scaleLog().domain([lo, hi]).range([m.l, W - m.r]).clamp(true);
+    const y = d3.scaleLog().domain([lo, hi]).range([H - m.b, m.t]).clamp(true);
+    if (!animate || !scState) {
+      el.innerHTML = "";
+      const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Scatter plot of predicted versus measured TSS");
+      const ticks = [1, 3, 10, 30, 100, 300, 1000];
+      const g = svg.append("g").attr("class", "grid");
+      ticks.forEach((t) => { g.append("line").attr("x1", x(t)).attr("x2", x(t)).attr("y1", m.t).attr("y2", H - m.b); g.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)); });
+      const ax = svg.append("g").attr("class", "axis");
+      ticks.forEach((t) => { ax.append("text").attr("x", x(t)).attr("y", H - m.b + 18).attr("text-anchor", "middle").text(fmtInt(t)); ax.append("text").attr("x", m.l - 8).attr("y", y(t) + 4).attr("text-anchor", "end").text(fmtInt(t)); });
+      svg.append("text").attr("class", "axis-title").attr("x", (m.l + W - m.r) / 2).attr("y", H - 6).attr("text-anchor", "middle").text("Measured TSS (mg/L)");
+      svg.append("text").attr("class", "axis-title").attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).attr("text-anchor", "middle").text("Predicted TSS (mg/L)");
+      // within-2x band
+      const bandPts = [[lo, lo * 2], [hi / 2, hi], [hi, hi], [hi, hi / 2], [lo * 2, lo], [lo, lo]];
+      svg.append("path").attr("d", d3.line().x((d) => x(d[0])).y((d) => y(d[1]))(bandPts) + "Z").attr("fill", css("--band"));
+      svg.append("line").attr("x1", x(lo)).attr("y1", y(lo)).attr("x2", x(hi)).attr("y2", y(hi)).attr("stroke", css("--muted")).attr("stroke-width", 1.5).attr("stroke-dasharray", "5 4");
+      svg.append("text").attr("class", "dlabel-2").attr("x", x(400)).attr("y", y(400) - 10).attr("text-anchor", "end").attr("transform", null).text("Perfect prediction");
+      svg.append("line").attr("class", "baseline").attr("x1", m.l).attr("x2", W - m.r).attr("y1", H - m.b).attr("y2", H - m.b);
+      const dots = svg.append("g").attr("fill", css("--s1")).attr("fill-opacity", isDark() ? 0.45 : 0.32);
+      dots.selectAll("circle").data(real).join("circle").attr("r", W < 520 ? 2 : 2.6).attr("cx", (d) => x(d)).attr("cy", (d, i) => y(Math.max(pred[i], lo)));
+      const trendPath = svg.append("path").attr("fill", "none").attr("stroke", css("--s2")).attr("stroke-width", 2.5).attr("stroke-linejoin", "round");
+      const trendDots = svg.append("g");
+      const trendLabel = svg.append("text").attr("class", "dlabel");
+      const hoverRing = svg.append("circle").attr("r", 6).attr("fill", "none").attr("stroke", css("--ink")).attr("stroke-width", 2).style("opacity", 0);
+      const hit = svg.append("rect").attr("x", m.l).attr("y", m.t).attr("width", W - m.l - m.r).attr("height", H - m.t - m.b).attr("fill", "transparent");
+      scState = { svg, dots, trendPath, trendDots, trendLabel, hoverRing, hit, x, y, W, H };
+    }
+    const st = scState;
+    const t = animate ? d3.transition().duration(450) : null;
+    const sel = st.dots.selectAll("circle");
+    (t ? sel.transition(t) : sel).attr("cy", (d, i) => st.y(Math.max(pred[i], lo)));
+    const tr = D.trend[scModel];
+    const tline = d3.line().x((d) => st.x(d[0])).y((d) => st.y(d[1]));
+    (t ? st.trendPath.transition(t) : st.trendPath).attr("d", tline(tr));
+    const td = st.trendDots.selectAll("circle").data(tr).join("circle").attr("r", 4).attr("fill", css("--s2")).attr("stroke", css("--surface")).attr("stroke-width", 2).attr("cx", (d) => st.x(d[0]));
+    (t ? td.transition(t) : td).attr("cy", (d) => st.y(d[1]));
+    const last = tr[tr.length - 1];
+    st.trendLabel.text("Model's typical guess").attr("x", st.x(last[0]) - 6).attr("text-anchor", "end");
+    (t ? st.trendLabel.transition(t) : st.trendLabel).attr("y", st.y(last[1]) + 22);
+    const pts = real.map((r, i) => [st.x(r), st.y(Math.max(pred[i], lo))]);
+    const del = d3.Delaunay.from(pts);
+    st.hit.on("pointermove", (e) => {
+      const [mx, my] = d3.pointer(e, st.svg.node());
+      const k = st.svg.node().getBoundingClientRect().width / st.W;
+      const i = del.find(mx, my);
+      if (Math.hypot(pts[i][0] - mx, pts[i][1] - my) * k > 16) { st.hoverRing.style("opacity", 0); hideTip(); return; }
+      st.hoverRing.attr("cx", pts[i][0]).attr("cy", pts[i][1]).style("opacity", 1);
+      const ratio = pred[i] / real[i];
+      const verdict = ratio >= 1 ? `${ratio.toFixed(1)}× too high` : `${(1 / ratio).toFixed(1)}× too low`;
+      showTip(`Measured: <b>${fmtTss(real[i])} mg/L</b><br>Predicted: <b>${fmtTss(pred[i])} mg/L</b><br><span class="tt-muted">${verdict}${ratio >= 0.5 && ratio <= 2 ? " · within 2×" : ""}</span>`, e.clientX, e.clientY);
+    }).on("pointerleave", () => { st.hoverRing.style("opacity", 0); hideTip(); });
+    const first = tr[0], mm = metricOf(scModel);
+    document.getElementById("scatterNote").innerHTML =
+      `<b>${scModel}:</b> ${Math.round(mm.within_2x * 100)}% of samples within 2×. The orange line is flatter than the dashed one: the muddiest samples (around ${fmtTss(last[0])} mg/L) are predicted at only about <b>${fmtTss(last[1])} mg/L</b>, while the clearest (around ${fmtTss(first[0])} mg/L) are predicted at ${fmtTss(first[1])} mg/L.`;
+  }
+  segmented(modelSeg, (v) => { scModel = v; renderScatter(true); });
+
+  /* ================= 5. importance ================= */
+  const FEAT = {
+    R_B: ["Red ÷ blue ratio", "How much redder than blue the water looks"],
+    red: ["Red light", "Red light reflected by the water"],
+    log_visible: ["Overall brightness", "Total visible light (blue + green + red), log scale"],
+    swir1: ["Shortwave infrared 1", "Almost fully absorbed by water; helps flag haze or land in the pixel"],
+    swir2: ["Shortwave infrared 2", "Almost fully absorbed by water; helps flag haze or land in the pixel"],
+    NDTI: ["Turbidity index (NDTI)", "Normalized difference of red and green"],
+    R_G: ["Red ÷ green ratio", "How much redder than green the water looks"],
+    G_B: ["Green ÷ blue ratio", "How much greener than blue the water looks"],
+    NIR_R: ["Near-IR ÷ red ratio", "Near-infrared relative to red light"],
+    NDWI: ["Water index (NDWI)", "Normalized difference of green and near-infrared"],
+    NDSSI: ["Sediment index (NDSSI)", "Normalized difference of blue and near-infrared"],
+    nir: ["Near-infrared light", "Invisible to the eye; sediment reflects it, clear water absorbs it"],
+    blue: ["Blue light", "Blue light reflected by the water"],
+    green: ["Green light", "Green light reflected by the water"],
+    doy_sin: ["Season (sine)", "Time of year, encoded as a cycle"],
+    doy_cos: ["Season (cosine)", "Time of year, encoded as a cycle"],
+  };
+  function renderImportance() {
+    const el = document.getElementById("impChart");
+    const rows = D.importance.slice(0, 10);
+    const W = el.clientWidth, narrow = W < 560, band = narrow ? 52 : 34;
+    const m = { t: 24, r: narrow ? 50 : 210, b: 8, l: narrow ? 8 : 190 };
+    const H = m.t + m.b + rows.length * band;
+    el.innerHTML = "";
+    const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Bar chart of the ten most important satellite signals");
+    const x = d3.scaleLinear().domain([0, d3.max(rows, (d) => d.importance) * 1.05]).range([m.l, W - m.r]);
+    svg.append("text").attr("class", "axis-title").attr("x", m.l).attr("y", 12).text("Share of the model's decisions");
+    if (!narrow) svg.append("text").attr("class", "axis-title").attr("x", W - m.r + 56).attr("y", 12).text("Higher value means…");
+    rows.forEach((d, i) => {
+      const yTop = m.t + i * band, barH = 16;
+      const by = narrow ? yTop + 22 : yTop + (band - barH) / 2;
+      const [name, desc] = FEAT[d.feature] || [d.feature, ""];
+      svg.append("text").attr("class", i < 2 ? "dlabel" : "dlabel-2").style("fill", i < 2 ? null : "var(--ink-2)").style("font-size", "13px")
+        .attr("x", narrow ? m.l : m.l - 12).attr("y", narrow ? yTop + 15 : by + barH / 2 + 4).attr("text-anchor", narrow ? "start" : "end").text(name);
+      const w = Math.max(2, x(d.importance) - x(0)), rr = Math.min(4, w / 2);
+      svg.append("path").attr("d", `M${x(0)},${by} h${w - rr} a${rr},${rr} 0 0 1 ${rr},${rr} v${barH - 2 * rr} a${rr},${rr} 0 0 1 -${rr},${rr} h-${w - rr} Z`).attr("fill", i < 2 ? css("--s1") : css("--bar-muted"));
+      svg.append("text").attr("class", "dlabel-2").attr("x", x(d.importance) + 6).attr("y", by + barH / 2 + 4).text(Math.round(d.importance * 100) + "%");
+      const dir = d.direction > 0.3 ? "↑ more mud" : d.direction < -0.3 ? "↓ less mud" : "mixed effect";
+      if (narrow) svg.append("text").attr("class", "dlabel-2").attr("x", W - 4).attr("y", yTop + 15).attr("text-anchor", "end").text(dir);
+      else svg.append("text").attr("class", "dlabel-2").attr("x", W - m.r + 56).attr("y", by + barH / 2 + 4).text(dir);
+      svg.append("rect").attr("x", 0).attr("y", yTop).attr("width", W).attr("height", band).attr("fill", "transparent")
+        .on("pointermove", (e) => showTip(`<b>${name}</b> <span class="tt-muted">(${d.feature})</span><br>${desc}<br>Importance: ${(d.importance * 100).toFixed(1)}%<br><span class="tt-muted">Higher value → ${d.direction > 0.3 ? "higher" : d.direction < -0.3 ? "lower" : "mixed"} predicted TSS</span>`, e.clientX, e.clientY))
+        .on("pointerleave", hideTip);
+    });
+    svg.append("line").attr("class", "baseline").attr("x1", x(0)).attr("x2", x(0)).attr("y1", m.t).attr("y2", H - m.b);
+  }
+
+  /* ---------- render & resize ---------- */
+  function renderAll() { renderSpectrum(); renderMap(); renderBars(); scState = null; renderScatter(false); renderImportance(); }
+  renderAll();
+  let lastW = document.body.clientWidth, rt;
+  window.addEventListener("resize", () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => { if (document.body.clientWidth !== lastW) { lastW = document.body.clientWidth; renderAll(); } }, 150);
+  });
+})();
+</script>
+</body>
+</html>
