@@ -7,6 +7,8 @@ Chulalongkorn University, Faculty of Engineering
 
 **Live visualizer:** [Click Here](https://2107541-final-project-waterturbidity.netlify.app/)
 
+**Disclaimer from Contributor** 
+> Most of this project were coded by myself , Claude is just assistant to get my work faster and more efficient , not a main contributor.
 ---
 
 ## Problem
